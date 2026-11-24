@@ -6,7 +6,7 @@ const sampleRows = [
   {id:'c',kind:'섬',title:'거리감섬',body:'낯설다는 이유로 멀찍이 서 있었어요.'},
   {id:'d',kind:'다리',title:'기다림의 다리',body:'상대가 말을 마칠 때까지 기다리기.',from:'a',to:'b'}
 ];
-let rows=[], demo=false, busy=false, loading=false, revision=0;
+let rows=[], demo=false, busy=false, loading=false, revision=0, avatar=Number(localStorage.islandAvatar||0);
 const live=Boolean(window.BOARD_API);
 const data=()=>demo?sampleRows:rows;
 const island=()=>rows.find(r=>r.mine && r.kind==='섬');
@@ -29,8 +29,23 @@ function draw(old=data()){
  world.style.height=h+'px';$('nodes').replaceChildren();$('lines').replaceChildren();const points=new Map();
  $('caption').textContent=(demo?'예시 보드':live?'우리의 바다':'이 기기 체험 보드')+' · 섬 '+isles.length+'개';
  $('newbtn').hidden=!demo&&!!island();$('newbtn').textContent=demo?'참여 화면으로':'섬 만들기';$('listbtn').hidden=$('csv').hidden=demo;
- isles.forEach((r,i)=>{const col=i%cols,row=Math.floor(i/cols),x=w*(col+.5)/cols,y=95+row*155+(col%2)*48;points.set(r.id,[x,y]);const b=button('',()=>detail(r));b.className='isle'+(!old.some(o=>o.id===r.id)?' born':'');b.style.left=x+'px';b.style.top=y+'px';const img=el('img');img.src='isle.webp';img.alt='';b.append(img,el('span',r.title));$('nodes').append(b)});
+ isles.forEach((r,i)=>{const col=i%cols,row=Math.floor(i/cols),x=w*(col+.5)/cols,y=95+row*155+(col%2)*48;points.set(r.id,[x,y]);const b=button('',()=>demo?detail(r):walkTo(r));b.setAttribute('aria-label','섬 '+r.id);b.className='isle'+(!old.some(o=>o.id===r.id)?' born':'');b.style.left=x+'px';b.style.top=y+'px';const img=el('img');img.src='isle.webp';img.alt='';b.append(img,el('span',r.title));$('nodes').append(b)});
  for(const r of items.filter(r=>r.kind==='다리')){const a=points.get(r.from),b=points.get(r.to);if(!a||!b)continue;for(const [color,width,dash] of [['#634734',12,''],['#caa473',9,'4 2']]){const l=document.createElementNS('http://www.w3.org/2000/svg','line');for(const [k,v] of Object.entries({x1:a[0],y1:a[1]+18,x2:b[0],y2:b[1]+18,stroke:color,'stroke-width':width,'stroke-dasharray':dash}))l.setAttribute(k,v);if(!old.some(o=>o.id===r.id))l.classList.add('built');$('lines').append(l)}}
+}
+function setupAvatars(){
+ const box=$("avatars");box.replaceChildren();
+ for(let i=0;i<20;i++){const b=button("",()=>{avatar=i;localStorage.islandAvatar=i;setupAvatars()});b.className="avatar"+(i===avatar?" selected":"");b.setAttribute("aria-label","캐릭터 "+(i+1)+(i===avatar?" 선택됨":""));const img=el("img");img.src="assets/characters/"+String(i+1).padStart(2,"0")+".png";img.alt="";b.append(img);box.append(b)}
+}
+function walkTo(target){
+ if(!target)return;
+ document.querySelector(".walker")?.remove();
+ const start=island(),from=start&&document.querySelector('[aria-label="섬 '+start.id+'"]'),end=document.querySelector('[aria-label="섬 '+target.id+'"]');
+ if(!end)return;
+ const world=$("world"),bounds=world.getBoundingClientRect(),dest=end.getBoundingClientRect();
+ const x2=dest.left-bounds.left+dest.width/2,y2=dest.top-bounds.top+dest.height/2;
+ const startRect=from?.getBoundingClientRect(),x1=startRect?startRect.left-bounds.left+startRect.width/2:Math.max(40,x2-120),y1=startRect?startRect.top-bounds.top+startRect.height/2:Math.max(40,y2-70);
+ const person=el("img");person.src="assets/characters/"+String(avatar+1).padStart(2,"0")+".png";person.className="walker";person.alt="내 캐릭터가 섬으로 걸어가는 중";person.style.left=x1+"px";person.style.top=y1+"px";world.append(person);
+ const anim=person.animate([{left:x1+"px",top:y1+"px"},{left:x2+"px",top:y2+"px"}],{duration:Math.min(2600,600+Math.hypot(x2-x1,y2-y1)*3),easing:"ease-in-out",fill:"forwards"});anim.onfinish=()=>{person.remove();detail(target)}
 }
 function dialog(title){const d=$('modal');d.replaceChildren(el('h2',title));if(!d.open)d.showModal();return d}
 function detail(r){const d=dialog(r.title);d.append(el('p',r.body));const linked=data().filter(v=>v.kind==='다리'&&(v.from===r.id||v.to===r.id));for(const v of linked)d.append(el('b',v.title),el('p',v.body));if(!demo&&!r.mine&&island()&&!rows.some(v=>v.from===island().id&&v.to===r.id))d.append(button('다리 놓기',()=>editor(null,r)));else if(!demo&&!island())d.append(button('내 섬 먼저 만들기',()=>{d.close();view('intro')}));d.append(button('닫기',()=>d.close()))}
@@ -40,4 +55,4 @@ $('entry').onsubmit=e=>{e.preventDefault();const f=e.target;save({action:'create
 $('mapbtn').onclick=()=>{demo=false;view('board')};$('sample').onclick=()=>{demo=true;view('board')};$('newbtn').onclick=()=>{demo=false;view(island()?'board':'intro')};$('listbtn').onclick=()=>view('mine');
 $('csv').onclick=()=>{const field=v=>{let s=String(v??'');if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"'};const name=id=>rows.find(r=>r.id===id)?.title||'';const lines=[['속성','제목','내용','출발 섬','도착 섬'],...rows.map(r=>[r.kind,r.title,r.body,name(r.from),name(r.to)])];const url=URL.createObjectURL(new Blob(['\uFEFF'+lines.map(row=>row.map(field).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=el('a');a.href=url;a.download='섬과다리.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)};
 if(!live){const note=el('p','체험판 · 이 기기에만 저장됩니다.');$('intro').prepend(note)}
-sync(true);if(live)setInterval(()=>{if(!document.hidden)sync()},7000);window.addEventListener('resize',()=>{if(!$('board').hidden)draw()});
+setupAvatars();sync(true);if(live)setInterval(()=>{if(!document.hidden)sync()},7000);window.addEventListener('resize',()=>{if(!$('board').hidden)draw()});
