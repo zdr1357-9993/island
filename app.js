@@ -25,12 +25,12 @@ async function request(p){if(!live)return local(p);const res=await fetch(window.
 async function sync(first=false){if(loading||busy)return;loading=true;const seq=revision;try{const got=await request({action:'read'});if(seq!==revision)return;const old=rows;rows=got;if(first&&island())view('board');else if(!$('board').hidden&&!demo)draw(old);else if(!$('mine').hidden)list()}catch(e){tell('보드를 불러오지 못했어요. '+e.message)}finally{loading=false}}
 async function save(p,destination){if(busy)return;busy=true;revision++;const btns=[...document.querySelectorAll('button:not(:disabled)')];btns.forEach(b=>b.disabled=true);try{const old=rows;rows=await request(p);$('modal').close();demo=false;view(destination);if(destination==='board')draw(old);tell('저장했어요.');setTimeout(()=>tell(''),2200)}catch(e){alert(e.message)}finally{busy=false;btns.forEach(b=>b.disabled=false)}}
 function draw(old=data()){
- const items=data(),isles=items.filter(r=>r.kind==='섬'),world=$('world'),w=Math.max(290,world.clientWidth),cols=Math.max(2,Math.min(4,Math.floor(w/165))),h=Math.max(420,Math.ceil(isles.length/cols)*155+70);
+ const items=data(),isles=items.filter(r=>r.kind==='섬'),world=$('world'),w=Math.max(290,world.clientWidth),spots=[[.19,.24],[.50,.33],[.81,.24],[.19,.68],[.50,.72],[.81,.68]],pages=Math.max(1,Math.ceil(isles.length/6)),h=Math.max(560,pages*560);
  world.style.height=h+'px';$('nodes').replaceChildren();$('lines').replaceChildren();const points=new Map();
  $('caption').textContent=(demo?'예시 보드':live?'우리의 바다':'이 기기 체험 보드')+' · 섬 '+isles.length+'개';
  $('newbtn').hidden=!demo&&!!island();$('newbtn').textContent=demo?'참여 화면으로':'섬 만들기';$('listbtn').hidden=$('csv').hidden=demo;
- isles.forEach((r,i)=>{const col=i%cols,row=Math.floor(i/cols),x=w*(col+.5)/cols,y=95+row*155+(col%2)*48;points.set(r.id,[x,y]);const b=button('',()=>demo?detail(r):walkTo(r));b.setAttribute('aria-label','섬 '+r.id);b.className='isle'+(!old.some(o=>o.id===r.id)?' born':'');b.style.left=x+'px';b.style.top=y+'px';const img=el('img');img.src='isle.webp';img.alt='';b.append(img,el('span',r.title));$('nodes').append(b)});
- for(const r of items.filter(r=>r.kind==='다리')){const a=points.get(r.from),b=points.get(r.to);if(!a||!b)continue;for(const [color,width,dash] of [['#634734',12,''],['#caa473',9,'4 2']]){const l=document.createElementNS('http://www.w3.org/2000/svg','line');for(const [k,v] of Object.entries({x1:a[0],y1:a[1]+18,x2:b[0],y2:b[1]+18,stroke:color,'stroke-width':width,'stroke-dasharray':dash}))l.setAttribute(k,v);if(!old.some(o=>o.id===r.id))l.classList.add('built');$('lines').append(l)}}
+ isles.forEach((r,i)=>{const page=Math.floor(i/6),spot=spots[i%6],x=w*spot[0],y=page*560+560*spot[1];points.set(r.id,[x,y]);const b=button('',()=>demo?detail(r):walkTo(r));b.setAttribute('aria-label','섬 '+r.id);b.className='isle'+(!old.some(o=>o.id===r.id)?' born':'');b.style.left=x+'px';b.style.top=y+'px';b.append(el('span',r.title));$('nodes').append(b)});
+
 }
 function setupAvatars(){
  const box=$("avatars");box.replaceChildren();
