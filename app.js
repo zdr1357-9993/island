@@ -31,7 +31,9 @@ const el = (tag, text) => Object.assign(document.createElement(tag), {textConten
 function button(text, fn, cls){ const b = el('button', text); b.type = 'button'; b.onclick = fn; if (cls) b.className = cls; return b; }
 function view(id){ for (const page of ['intro','board','mine']) $(page).hidden = page !== id; if (id === 'board') draw(); if (id === 'mine') list(); scrollTo(0, 0); }
 let statusTimer; function tell(s, ms = 2400){ $('status').textContent = s; clearTimeout(statusTimer); if (s) statusTimer = setTimeout(() => $('status').textContent = '', ms); }
-const isleImage = r => r.sunk ? 'isle-sunk.webp' : r.type === '장벽' ? 'isle-wall.webp' : 'isle-think.webp';
+// 같은 종류의 섬도 두 가지 그림 중 하나로 (id로 정해져서 모든 기기에서 같음)
+const variant = id => [...String(id)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 2 ? '-2' : '';
+const isleImage = r => r.sunk ? 'isle-sunk.webp' : (r.type === '장벽' ? 'isle-wall' : 'isle-think') + variant(r.id) + '.webp';
 
 /* ---------- 확인 팝업 (브라우저 기본 confirm 대신) ---------- */
 function ask(text, ok = '확인'){

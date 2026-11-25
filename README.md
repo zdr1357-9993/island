@@ -33,12 +33,12 @@
 
 | 파일 | 용도 |
 |---|---|
-| `isle-think.webp` | '돌아보게 된 생각' 섬 |
-| `isle-wall.webp` | '우리 주변의 장벽' 섬 (돌담과 울타리) |
+| `isle-think.webp`, `isle-think-2.webp` | '돌아보게 된 생각' 섬 (두 가지 중 하나가 섬마다 정해짐) |
+| `isle-wall.webp`, `isle-wall-2.webp` | '우리 주변의 장벽' 섬 |
 | `isle-sunk.webp` | 가라앉은 섬 |
 | `sea-wide.webp`, `sea-tall.webp` | 바다 배경 (가로 / 세로) |
-| `stone.png` | 징검돌 |
+| `stone.webp` | 징검돌 |
 | `og.png`, `favicon.png` | 링크 미리보기, 아이콘 |
 | `assets/characters/*.png` | 캐릭터 20종 |
 
-바다, 징검돌, 장벽 섬, 가라앉은 섬, 링크 미리보기는 코드로 직접 그린 임시 픽셀아트예요. 더 좋은 그림으로 바꾸고 싶으면 같은 파일 이름으로 덮어쓰면 돼요. 섬 그림은 420×280 크기에 투명 배경이어야 해요.
+섬·바다·징검돌 그림은 ComfyUI(Z-Image Turbo)로 만들고, 단색 배경을 지워 투명하게 처리했어요. 섬 그림을 바꾸려면 420×280 크기에 투명 배경으로 같은 파일 이름에 덮어쓰면 돼요.
