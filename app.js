@@ -206,7 +206,9 @@ function draw(old = data()){
   $('nodes').replaceChildren();
   const isles = items.filter(r => r.kind === '섬'), bridges = items.filter(r => r.kind === '다리');
   $('caption').textContent = (demo ? '예시 바다' : live ? '우리의 바다' : '이 기기 체험 바다') + ' · 섬 ' + isles.length + ' · 다리 ' + bridges.length;
-  $('newbtn').hidden = HOST || (!demo && myIsles().length > 0); $('newbtn').textContent = demo ? '참여 화면으로' : '섬 만들기';
+  // 섬은 한 사람당 PER개까지: 다 만들기 전까지는 보드에서도 바로 만들 수 있게
+  const n = myIsles().length;
+  $('newbtn').hidden = HOST || (!demo && n >= PER); $('newbtn').textContent = demo ? '참여 화면으로' : n ? `섬 만들기 ${n}/${PER}` : '섬 만들기';
   $('listbtn').hidden = $('csv').hidden = demo || HOST;
   $('hint').textContent = HOST ? '' : demo ? '예시예요. 실제 기록과 섞이지 않아요.' : myIsles().length ? '섬을 눌러 이야기를 읽고, 다리를 놓아 보세요.' : '섬을 눌러 이야기를 읽을 수 있어요.';
 
@@ -381,7 +383,7 @@ $('entry').onsubmit = e => {
 };
 $('mapbtn').onclick = () => { demo = false; view('board'); };
 $('sample').onclick = () => { demo = true; view('board'); };
-$('newbtn').onclick = () => { demo = false; view(myIsles().length ? 'board' : 'intro'); };
+$('newbtn').onclick = () => { const was = demo; demo = false; view(was && myIsles().length ? 'board' : 'intro'); };
 $('addisle').onclick = () => view('intro');
 $('introback').onclick = () => view('board');
 $('listbtn').onclick = () => view('mine');
