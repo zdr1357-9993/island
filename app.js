@@ -99,6 +99,7 @@ function local(p){
     saved.push({...row, id: crypto.randomUUID(), mine: true, from: p.kind === '다리' ? island()?.id : ''});
   }
   if (p.action === 'reset'){ localStorage.islandPreview = '[]'; return []; }
+  if (p.action === 'adminDelete'){ const t = saved.find(r => r.id === p.id); saved = saved.filter(r => t?.kind === '섬' ? ![r.id, r.from, r.to].includes(p.id) : r.id !== p.id); }
   if (p.action === 'edit' && own(p.id)) Object.assign(own(p.id), {title: p.title, body: p.body});
   if (p.action === 'delete' && own(p.id)){
     // 섬은 지우지 않고 가라앉힌다: 남이 놓은 다리는 그대로 남는다
@@ -130,9 +131,9 @@ async function save(p, destination){
   const btns = [...document.querySelectorAll('button:not(:disabled)')]; btns.forEach(b => b.disabled = true);
   try {
     const old = rows; rows = await request(p);
-    $('modal').close(); demo = false; view(destination);
+    if (p.action !== 'adminDelete') $('modal').close(); demo = false; view(destination);
     if (destination === 'board') draw(old);
-    if (p.action === 'reset') return true;
+    if (p.action === 'reset' || p.action === 'adminDelete') return true;
     tell(p.action === 'create' ? (p.kind === '다리' ? '다리가 놓였어요.' : '바다 위에 섬이 떠올랐어요.') : p.action === 'delete' ? '정리했어요.' : '저장했어요.');
     return true;
   } catch(e){ tell(e.message, 4000); return false; }
@@ -231,7 +232,7 @@ function walkTo(target){
 }
 
 /* ---------- 섬 상세 / 다리 놓기 ---------- */
-function dialog(title){ const d = $('modal'); d.replaceChildren(el('h2', title)); if (!d.open) d.showModal(); return d; }
+function dialog(title){ const d = $('modal'); d.classList.remove('wide'); d.replaceChildren(el('h2', title)); if (!d.open) d.showModal(); return d; }
 const titleOf = id => data().find(r => r.id === id)?.title || '사라진 섬';
 function bridgeItem(v, note){ const box = el('div'); box.className = 'bridge-item'; box.append(el('small', note), el('b', v.title), el('p', v.body)); return box; }
 function detail(r){
@@ -321,16 +322,47 @@ $('csv').onclick = () => {
 };
 if (HOST){ document.body.classList.add('host'); $('hostbar').hidden = false; }
 $('hostcsv').onclick = () => $('csv').click();
+// 진행자 코드: 한 번 맞게 넣으면 이 기기가 기억한다
+function askAdmin(title, action){
+  const d = dialog(title), form = el('form'), input = el('input');
+  input.type = 'password'; input.inputMode = 'numeric'; input.autocomplete = 'off'; input.required = true;
+  const l = el('label', '진행자 코드를 입력해 주세요'); l.append(input); form.append(l);
+  const row = el('div'); row.className = 'actions'; const go = el('button', '확인'); go.className = 'primary';
+  row.append(go, button('취소', () => d.close())); form.append(row); d.append(form); input.focus();
+  form.onsubmit = async e => { e.preventDefault(); const admin = input.value.trim(); if (await action(admin)) localStorage.islandAdmin = admin; };
+}
+async function adminRun(p, then){
+  const run = async admin => { const ok = await save({...p, admin}, 'board'); if (ok) then?.(); return ok; };
+  if (localStorage.islandAdmin && await run(localStorage.islandAdmin)) return;
+  if (localStorage.islandAdmin) localStorage.removeItem('islandAdmin');
+  askAdmin('진행자 코드', run);
+}
+// 진행자: 기록 확인하기 (표로 보고 한 줄씩 지우기)
+function records(){
+  const d = dialog('기록 확인하기'); d.classList.add('wide');
+  const list = rows.filter(r => !r.sunk);
+  if (!list.length){ const p = el('p', '아직 기록이 없어요.'); p.className = 'muted'; d.append(p); }
+  else {
+    const wrap = el('div'); wrap.className = 'table-wrap'; const t = el('table'), head = el('tr');
+    ['', '속성', '제목', '내용', '종류·연결'].forEach(h => head.append(el('th', h))); t.append(head);
+    for (const r of list){
+      const tr = el('tr');
+      const td = el('td'); tr.append(td);
+      tr.append(el('td', r.kind), el('td', r.title), el('td', r.body), el('td', r.kind === '섬' ? r.type || '' : titleOf(r.from) + ' → ' + titleOf(r.to)));
+      td.append(button('삭제', async () => {
+        const msg = r.kind === '섬' ? `「${r.title}」을 지울까요? 이 섬에 닿은 다리도 함께 지워져요.` : `「${r.title}」을 지울까요?`;
+        if (await ask(msg, '삭제하기')) adminRun({action: 'adminDelete', id: r.id}, () => { tell('지웠어요.'); records(); });
+      }, 'danger')); t.append(tr);
+    }
+    wrap.append(t); d.append(wrap);
+  }
+  const row = el('div'); row.className = 'actions'; row.append(button('닫기', () => { d.close(); d.classList.remove('wide'); })); d.append(row);
+}
+$('records').onclick = records;
 // 진행자: 전체 리셋 (진행자 코드 필요, 지운 기록은 시트의 보관 탭에 남는다)
 $('reset').onclick = async () => {
-  if (!(await ask('정말 전체 리셋할까요? 바다의 모든 섬과 다리가 사라져요. 지금까지의 기록은 시트의 보관 탭에 남아요.', '리셋하기'))) return;
-  const d = dialog('진행자 코드'), form = el('form'), input = el('input');
-  input.type = 'password'; input.inputMode = 'numeric'; input.autocomplete = 'off'; input.required = true; input.value = localStorage.islandAdmin || '';
-  const l = el('label', '진행자 코드를 입력해 주세요'); l.append(input); form.append(l);
-  const row = el('div'); row.className = 'actions'; const go = el('button', '전체 리셋'); go.className = 'primary';
-  row.append(go, button('취소', () => d.close())); form.append(row); d.append(form);
-  form.onsubmit = async e => { e.preventDefault(); const admin = input.value.trim();
-    if (await save({action: 'reset', admin}, 'board')){ localStorage.islandAdmin = admin; tell('바다를 새로 열었어요.'); } };
+  if (!(await ask('정말 전체 리셋할까요? 바다의 모든 섬과 다리가 사라져요. 지금까지의 기록은 시트의 보관 탭과 내려받기시트에 남아요.', '리셋하기'))) return;
+  adminRun({action: 'reset'}, () => tell('바다를 새로 열었어요.'));
 };
 if (!live){ const note = el('p', '체험판 · 이 기기에만 저장됩니다.'); note.className = 'note'; $('intro').prepend(note); }
 setupAvatars();

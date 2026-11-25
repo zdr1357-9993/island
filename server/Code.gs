@@ -15,6 +15,19 @@ function sheet_(){
   if (!sh){ sh = ss.insertSheet('rows'); sh.appendRow(HEAD); sh.setFrozenRows(1); }
   return sh;
 }
+// '내려받기시트': 그간 쓴 글을 한눈에 보는 탭. 전체 리셋을 해도 지우지 않는다
+const LOG_NAME = '내려받기시트', LOG_HEAD = ['kind','type','title','body','id'];
+function log_(){
+  const ss = sheet_().getParent();
+  let lg = ss.getSheetByName(LOG_NAME);
+  if (!lg){ lg = ss.insertSheet(LOG_NAME); lg.appendRow(LOG_HEAD); lg.setFrozenRows(1); }
+  if (lg.getRange(1, 5).getValue() !== 'id'){ lg.getRange(1, 5).setValue('id'); }
+  return lg;
+}
+function logFind_(lg, id){ const ids = lg.getRange(1, 5, Math.max(lg.getLastRow(), 1), 1).getValues(); for (let i = ids.length - 1; i >= 1; i--) if (ids[i][0] === id) return i + 1; return 0; }
+function logAdd_(id, kind, type, title, body){ log_().appendRow([kind, type, title, body, id]); }
+function logEdit_(id, title, body){ const lg = log_(), r = logFind_(lg, id); if (r) lg.getRange(r, 3, 1, 2).setValues([[title, body]]); }
+function logRemove_(ids){ const lg = log_(); ids.map(id => logFind_(lg, id)).filter(Boolean).sort((a, b) => b - a).forEach(r => lg.deleteRow(r)); }
 function all_(){
   const values = sheet_().getDataRange().getValues(); values.shift();
   return values.map((v, n) => ({...Object.fromEntries(HEAD.map((h, i) => [h, v[i]])), _row: n + 2})).filter(r => r.id);
@@ -59,13 +72,17 @@ function doPost(e){
         const used = new Set(rows.filter(r => r.kind === '섬').map(r => Number(r.slot)));
         if (used.size >= MAX_ISLANDS) return json_({error: '바다가 가득 찼어요.'});
         let slot = Number(p.slot); if (!(slot >= 0 && slot < MAX_ISLANDS) || used.has(slot)) slot = FILL_.find(s => !used.has(s));
-        sh.appendRow([Utilities.getUuid(), '섬', p.type === '장벽' ? '장벽' : '생각', slot, title, body, '', '', me, false, now, now]);
+        const id = Utilities.getUuid(), type = p.type === '장벽' ? '장벽' : '생각';
+        sh.appendRow([id, '섬', type, slot, title, body, '', '', me, false, now, now]);
+        logAdd_(id, '섬', type, title, body);
       } else if (p.kind === '다리'){
         if (!mineIsland) return json_({error: '내 섬을 먼저 만들어 주세요.'});
         const target = rows.find(r => r.id === p.to && r.kind === '섬' && !(r.sunk === true || r.sunk === 'TRUE'));
         if (!target || target.owner === me) return json_({error: '다리를 놓을 섬을 찾지 못했어요.'});
         if (rows.some(r => r.kind === '다리' && r.from === mineIsland.id && r.to === target.id)) return json_({error: '이미 이 섬에 다리를 놓았어요.'});
-        sh.appendRow([Utilities.getUuid(), '다리', '', '', title, body, mineIsland.id, target.id, me, false, now, now]);
+        const id = Utilities.getUuid();
+        sh.appendRow([id, '다리', '', '', title, body, mineIsland.id, target.id, me, false, now, now]);
+        logAdd_(id, '다리', '', title, body);
       } else return json_({error: '알 수 없는 요청이에요.'});
     }
     else if (p.action === 'edit' || p.action === 'delete'){
@@ -76,12 +93,23 @@ function doPost(e){
         if (!title || !body) return json_({error: '제목과 내용을 적어 주세요.'});
         sh.getRange(rowNo, col('title'), 1, 2).setValues([[title, body]]);
         sh.getRange(rowNo, col('updated')).setValue(now);
+        logEdit_(p.id, title, body);
       } else if (rows[i].kind === '섬'){
         // 섬은 지우지 않고 가라앉힌다: 다른 사람이 놓은 다리를 지키기 위해
         sh.getRange(rowNo, col('title'), 1, 2).setValues([['가라앉은 섬', '']]);
         sh.getRange(rowNo, col('sunk')).setValue(true);
         sh.getRange(rowNo, col('updated')).setValue(now);
-      } else sh.deleteRow(rowNo);
+        logRemove_([p.id]);
+      } else { sh.deleteRow(rowNo); logRemove_([p.id]); }
+    }
+    else if (p.action === 'adminDelete'){
+      // 진행자가 기록 한 줄을 지움. 섬이면 그 섬에 닿은 다리도 함께 지움
+      if (!ADMIN_CODE || String(p.admin) !== ADMIN_CODE) return json_({error: '진행자 코드가 맞지 않아요.'});
+      const target = rows.find(r => r.id === p.id);
+      if (!target) return json_({error: '이미 지워진 기록이에요.'});
+      const gone = target.kind === '섬' ? rows.filter(r => r.id === target.id || r.from === target.id || r.to === target.id) : [target];
+      gone.map(r => r._row).sort((a, b) => b - a).forEach(n => sh.deleteRow(n));
+      logRemove_(gone.map(r => r.id));
     }
     else if (p.action === 'reset'){
       if (!ADMIN_CODE || String(p.admin) !== ADMIN_CODE) return json_({error: '진행자 코드가 맞지 않아요.'});
