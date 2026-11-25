@@ -3,19 +3,20 @@
  * 스프레드시트 하나를 DB로 씁니다. 설치 방법은 README.md를 보세요.
  */
 const EVENT_CODE = '';          // config.js의 EVENT_CODE와 같은 값. 비워 두면 검사하지 않음
+const SHEET_ID = '';          // 스프레드시트 주소의 /d/와 /edit 사이 값. 비워 두면 스크립트가 붙은 시트를 씀
 const MAX_ISLANDS = 20;
 const COLS = 5, ROWS = 4;
 const HEAD = ['id','kind','type','slot','title','body','from','to','owner','sunk','created','updated'];
 
 function sheet_(){
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SHEET_ID ? SpreadsheetApp.openById(SHEET_ID) : SpreadsheetApp.getActiveSpreadsheet();
   let sh = ss.getSheetByName('rows');
   if (!sh){ sh = ss.insertSheet('rows'); sh.appendRow(HEAD); sh.setFrozenRows(1); }
   return sh;
 }
 function all_(){
   const values = sheet_().getDataRange().getValues(); values.shift();
-  return values.filter(v => v[0]).map(v => Object.fromEntries(HEAD.map((h, i) => [h, v[i]])));
+  return values.map((v, n) => ({...Object.fromEntries(HEAD.map((h, i) => [h, v[i]])), _row: n + 2})).filter(r => r.id);
 }
 function owner_(key){
   const props = PropertiesService.getScriptProperties();
@@ -69,7 +70,7 @@ function doPost(e){
     else if (p.action === 'edit' || p.action === 'delete'){
       const i = rows.findIndex(r => r.id === p.id);
       if (i < 0 || rows[i].owner !== me) return json_({error: '내가 쓴 글만 고칠 수 있어요.'});
-      const rowNo = i + 2, col = h => HEAD.indexOf(h) + 1;
+      const rowNo = rows[i]._row, col = h => HEAD.indexOf(h) + 1;
       if (p.action === 'edit'){
         if (!title || !body) return json_({error: '제목과 내용을 적어 주세요.'});
         sh.getRange(rowNo, col('title'), 1, 2).setValues([[title, body]]);
