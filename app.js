@@ -17,10 +17,10 @@ const FILL = [...Array(MAX).keys()].sort((a, b) => {
 });
 
 const sampleRows = [
-  {id:'a',kind:'섬',type:'생각',title:'망설임섬',body:'도움을 묻고 싶었지만 말을 걸기 망설였어요.'},
-  {id:'b',kind:'섬',type:'생각',title:'편견섬',body:'상대의 말을 듣기 전에 내 기준으로 판단했어요.'},
-  {id:'c',kind:'섬',type:'장벽',title:'거리감섬',body:'낯설다는 이유로 멀찍이 서 있었어요.'},
-  {id:'e',kind:'섬',type:'장벽',title:'침묵섬',body:'불편한 말을 들어도 그냥 넘겼어요.'},
+  {id:'a',kind:'섬',title:'망설임섬',body:'도움을 묻고 싶었지만 말을 걸기 망설였어요.'},
+  {id:'b',kind:'섬',title:'편견섬',body:'상대의 말을 듣기 전에 내 기준으로 판단했어요.'},
+  {id:'c',kind:'섬',title:'거리감섬',body:'낯설다는 이유로 멀찍이 서 있었어요.'},
+  {id:'e',kind:'섬',title:'침묵섬',body:'불편한 말을 들어도 그냥 넘겼어요.'},
   {id:'d',kind:'다리',title:'기다림의 다리',body:'상대가 말을 마칠 때까지 기다리기.',from:'a',to:'b'},
   {id:'f',kind:'다리',title:'먼저 묻는 다리',body:'불편하다고 단정하기 전에 어떤 도움이 필요한지 먼저 묻기.',from:'e',to:'c'}
 ];
@@ -29,15 +29,25 @@ let rows = [], demo = false, busy = false, loading = false, revision = 0, avatar
 let layout = {slots: new Map(), bySlot: new Map()}, walking = null;
 const live = Boolean(window.BOARD_API);
 const data = () => demo ? sampleRows : rows;
-const island = () => rows.find(r => r.mine && r.kind === '섬' && !r.sunk);
+const island = () => rows.find(r => r.mine && r.kind === '섬');
 const el = (tag, text) => Object.assign(document.createElement(tag), {textContent: text ?? ''});
 function button(text, fn, cls){ const b = el('button', text); b.type = 'button'; b.onclick = fn; if (cls) b.className = cls; return b; }
 function view(id){ for (const page of ['intro','board','mine']) $(page).hidden = page !== id; if (id === 'board') draw(); if (id === 'mine') list(); scrollTo(0, 0); }
 let statusTimer; function tell(s, ms = 2400){ $('status').textContent = s; clearTimeout(statusTimer); if (s) statusTimer = setTimeout(() => $('status').textContent = '', ms); }
 // 같은 종류의 섬도 두 가지 그림 중 하나로 (id로 정해져서 모든 기기에서 같음)
 const pick = (id, list) => list[[...String(id)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % list.length];
-const ISLES = {생각: ['reflection-cottage', 'reflection-well'], 장벽: ['barrier-stonewall', 'barrier-cliff-fence']};
-const isleImage = r => 'assets/islands/' + (r.sunk ? 'sunk' : pick(r.id, ISLES[r.type === '장벽' ? '장벽' : '생각'])) + '.png';
+// 섬 그림: 섬마다 id로 하나가 정해져서 모든 기기에서 같은 그림이 보인다. 같은 바다 안에서는 되도록 겹치지 않게 고른다
+const ISLES = ['reflection-cottage.png', 'isle-waterfall.webp', 'barrier-stonewall.png', 'isle-maple.webp', 'reflection-well.png', 'isle-pavilion.webp', 'barrier-cliff-fence.png', 'isle-lighthouse.webp', 'isle-bell.webp'];
+let isleArt = new Map();
+function assignArt(items){
+  isleArt = new Map(); const used = new Map();
+  for (const r of items.filter(v => v.kind === '섬')){
+    const start = [...String(r.id)].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7) % ISLES.length;
+    let best = start; for (let k = 0; k < ISLES.length; k++){ const i = (start + k) % ISLES.length; if ((used.get(i) || 0) < (used.get(best) || 0)) best = i; }
+    used.set(best, (used.get(best) || 0) + 1); isleArt.set(r.id, ISLES[best]);
+  }
+}
+const isleImage = r => 'assets/islands/' + (isleArt.get(r.id) || ISLES[0]);
 
 /* ---------- 확인 팝업 (브라우저 기본 confirm 대신) ---------- */
 function ask(text, ok = '확인'){
@@ -103,8 +113,8 @@ function local(p){
   if (p.action === 'edit' && own(p.id)) Object.assign(own(p.id), {title: p.title, body: p.body});
   if (p.action === 'delete' && own(p.id)){
     // 섬은 지우지 않고 가라앉힌다: 남이 놓은 다리는 그대로 남는다
-    if (own(p.id).kind === '섬') Object.assign(own(p.id), {sunk: true, title: '가라앉은 섬', body: ''});
-    else saved = saved.filter(r => r.id !== p.id);
+    // 섬을 지우면 그 섬에 닿은 다리도 함께 사라진다
+    saved = own(p.id).kind === '섬' ? saved.filter(r => ![r.id, r.from, r.to].includes(p.id)) : saved.filter(r => r.id !== p.id);
   }
   localStorage.islandPreview = JSON.stringify(saved); return saved;
 }
@@ -154,7 +164,7 @@ function geometry(){
 }
 function draw(old = data()){
   const items = data(), world = $('world'), g = geometry();
-  layout = assignSlots(items);
+  layout = assignSlots(items); assignArt(items);
   const oldLay = assignSlots(old), oldSegs = bridgeSegments(old, oldLay), segs = bridgeSegments(items, layout);
   world.style.width = g.w + 'px'; world.style.height = g.h + 'px';
   world.classList.toggle('tall', g.portrait);
@@ -162,7 +172,7 @@ function draw(old = data()){
   const svg = $('lines'); svg.setAttribute('viewBox', `0 0 ${g.w} ${g.h}`); svg.replaceChildren();
   $('nodes').replaceChildren();
   const isles = items.filter(r => r.kind === '섬'), bridges = items.filter(r => r.kind === '다리');
-  $('caption').textContent = (demo ? '예시 바다' : live ? '우리의 바다' : '이 기기 체험 바다') + ' · 섬 ' + isles.filter(r => !r.sunk).length + ' · 다리 ' + bridges.length;
+  $('caption').textContent = (demo ? '예시 바다' : live ? '우리의 바다' : '이 기기 체험 바다') + ' · 섬 ' + isles.length + ' · 다리 ' + bridges.length;
   $('newbtn').hidden = HOST || (!demo && !!island()); $('newbtn').textContent = demo ? '참여 화면으로' : '섬 만들기';
   $('listbtn').hidden = $('csv').hidden = demo || HOST;
   $('hint').textContent = HOST ? '' : demo ? '예시예요. 실제 기록과 섞이지 않아요.' : island() ? '다른 섬을 눌러 이야기를 읽고, 다리를 놓아 보세요.' : '섬을 눌러 이야기를 읽을 수 있어요.';
@@ -174,7 +184,7 @@ function draw(old = data()){
   };
   const defs = document.createElementNS(ns, 'defs'); svg.append(defs);
   // 아직 아무도 놓지 않은 다리 자리(이웃한 두 섬 사이)
-  for (const [s, r] of layout.bySlot) for (const n of neighbors(s)) if (n > s && layout.bySlot.has(n) && !r.sunk && !layout.bySlot.get(n).sunk && !segs.has(segKey(s, n))) line(s, n, 'maybe');
+  for (const [s, r] of layout.bySlot) for (const n of neighbors(s)) if (n > s && layout.bySlot.has(n) && !segs.has(segKey(s, n))) line(s, n, 'maybe');
   // 놓인 다리: 같은 구간을 지나는 다리가 많을수록 굵게
   const passing = new Map();
   for (const [k, seg] of segs){
@@ -204,12 +214,12 @@ function draw(old = data()){
     const s = layout.slots.get(r.id), [x, y] = g.pos(s);
     const b = button('', () => (demo || HOST) ? detail(r) : walkTo(r));
     b.dataset.id = r.id; b.setAttribute('aria-label', r.title + ' 섬 보기');
-    b.className = 'isle' + (!oldLay.slots.has(r.id) ? ' born' : '') + (r.mine && !r.sunk ? ' mine' : '') + (r.sunk ? ' sunk' : !passing.has(s) ? ' waiting' : '');
+    b.className = 'isle' + (!oldLay.slots.has(r.id) ? ' born' : '') + (r.mine ? ' mine' : '') + (!passing.has(s) ? ' waiting' : '');
     b.style.left = x + 'px'; b.style.top = y + 'px';
     const img = el('img'); img.src = isleImage(r); img.alt = '';
     b.append(img, el('span', r.title));
-    if (!oldLay.slots.has(r.id)){ const fx = el('i'); fx.className = 'splash'; b.append(fx); setTimeout(() => fx.remove(), 1300); }
-    if (r.mine && !r.sunk){ const me = el('i', '내 섬'); me.className = 'me'; b.append(me); }
+    if (!oldLay.slots.has(r.id)) for (const k of [0, 1]){ const w = el('i'); w.className = 'wave w' + k; b.append(w); setTimeout(() => w.remove(), 1800); }
+    if (r.mine){ const me = el('i', '내 섬'); me.className = 'me'; b.append(me); }
     $('nodes').append(b);
   }
 }
@@ -237,8 +247,7 @@ const titleOf = id => data().find(r => r.id === id)?.title || '사라진 섬';
 function bridgeItem(v, note){ const box = el('div'); box.className = 'bridge-item'; box.append(el('small', note), el('b', v.title), el('p', v.body)); return box; }
 function detail(r){
   const d = dialog(r.title);
-  const tag = el('span', r.sunk ? '가라앉은 섬' : r.type === '장벽' ? '우리 주변의 장벽' : '돌아보게 된 생각'); tag.className = 'tag'; d.append(tag);
-  d.append(el('p', r.sunk ? '이 섬의 이야기는 내려놓았어요. 이 섬에 닿았던 다리는 남아 있어요.' : r.body));
+  d.append(el('p', r.body));
   const all = data().filter(v => v.kind === '다리'), s = layout.slots.get(r.id);
   const incoming = all.filter(v => v.to === r.id), outgoing = all.filter(v => v.from === r.id);
   const through = all.filter(v => v.from !== r.id && v.to !== r.id && route(layout.slots.get(v.from), layout.slots.get(v.to)).slice(1, -1).includes(s));
@@ -246,9 +255,9 @@ function detail(r){
   incoming.forEach(v => d.append(bridgeItem(v, titleOf(v.from) + '에서 건너온 다리')));
   outgoing.forEach(v => d.append(bridgeItem(v, titleOf(v.to) + '(으)로 놓은 다리')));
   through.forEach(v => d.append(bridgeItem(v, titleOf(v.from) + ' → ' + titleOf(v.to) + ' 다리가 이 섬을 지나가요')));
-  if (!incoming.length && !through.length && !r.sunk){ const p = el('p', '아직 이 섬에 닿은 다리가 없어요.'); p.className = 'muted'; d.append(p); }
+  if (!incoming.length && !through.length){ const p = el('p', '아직 이 섬에 닿은 다리가 없어요.'); p.className = 'muted'; d.append(p); }
   const row = el('div'); row.className = 'actions';
-  if (!demo && !HOST && !r.mine && !r.sunk && island() && !rows.some(v => v.kind === '다리' && v.from === island().id && v.to === r.id)) row.append(button('다리 놓기', () => editor(null, r), 'primary'));
+  if (!demo && !HOST && !r.mine && island() && !rows.some(v => v.kind === '다리' && v.from === island().id && v.to === r.id)) row.append(button('다리 놓기', () => editor(null, r), 'primary'));
   else if (!demo && !HOST && !island() && !r.mine) row.append(button('내 섬 먼저 만들기', () => { d.close(); view('intro'); }, 'primary'));
   row.append(button('닫기', () => d.close())); d.append(row);
 }
@@ -276,7 +285,7 @@ function editor(r, target){
 /* ---------- 내 이야기 수정 ---------- */
 function list(){
   const box = $('mylist'); box.replaceChildren();
-  for (const r of rows.filter(v => v.mine && !v.sunk)){
+  for (const r of rows.filter(v => v.mine)){
     const card = el('article'); card.className = 'story';
     const head = el('div'); head.className = 'story-head';
     const kind = el('span', r.kind); kind.className = 'tag';
@@ -285,7 +294,7 @@ function list(){
     card.append(el('p', r.body));
     const row = el('div'); row.className = 'actions';
     row.append(button('수정', () => editor(r)), button('삭제', async () => {
-      const msg = r.kind === '섬' ? '정말 삭제하시겠습니까? 섬은 가라앉고, 다른 사람이 놓아 준 다리는 남아요.' : '정말 이 다리를 삭제하시겠습니까?';
+      const msg = r.kind === '섬' ? '정말 삭제하시겠습니까? 섬이 사라지고, 이 섬에 닿은 다리도 모두 함께 사라져요.' : '정말 이 다리를 삭제하시겠습니까?';
       if (await ask(msg, '삭제하기')) save({action:'delete', id:r.id}, 'mine');
     }, 'danger'));
     card.append(row); box.append(card);
@@ -305,7 +314,7 @@ function setupAvatars(){
 $('entry').onsubmit = e => {
   e.preventDefault(); const f = e.target, slot = freeSlot();
   if (slot === undefined){ tell('바다가 가득 찼어요. 섬은 ' + MAX + '개까지 만들 수 있어요.', 4000); return; }
-  save({action:'create', kind:'섬', slot, type: f.elements.type.value, title: f.elements.title.value.trim(), body: f.elements.body.value.trim()}, 'board');
+  save({action:'create', kind:'섬', slot, title: f.elements.title.value.trim(), body: f.elements.body.value.trim()}, 'board');
 };
 $('mapbtn').onclick = () => { demo = false; view('board'); };
 $('sample').onclick = () => { demo = true; view('board'); };
@@ -316,7 +325,7 @@ $('csv').onclick = () => {
   const field = v => { let s = String(v ?? ''); if (/^[=+@\-\t\r]/.test(s)) s = "'" + s; return '"' + s.replaceAll('"', '""') + '"'; };
   const lay = assignSlots(rows), name = id => rows.find(r => r.id === id)?.title || '';
   const via = r => r.kind === '다리' ? route(lay.slots.get(r.from), lay.slots.get(r.to), lay.bySlot).map(s => lay.bySlot.get(s)?.title || '징검돌').join(' → ') : '';
-  const lines = [['속성','종류','제목','내용','출발 섬','도착 섬','지나가는 길'], ...rows.map(r => [r.kind, r.kind === '섬' ? (r.sunk ? '가라앉음' : r.type || '') : '', r.title, r.body, name(r.from), name(r.to), via(r)])];
+  const lines = [['속성','제목','내용','출발 섬','도착 섬','지나가는 길'], ...rows.map(r => [r.kind, r.title, r.body, name(r.from), name(r.to), via(r)])];
   const url = URL.createObjectURL(new Blob(['﻿' + lines.map(row => row.map(field).join(',')).join('\r\n')], {type:'text/csv;charset=utf-8'}));
   const a = el('a'); a.href = url; a.download = '섬과다리.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
 };
@@ -340,15 +349,15 @@ async function adminRun(p, then){
 // 진행자: 기록 확인하기 (표로 보고 한 줄씩 지우기)
 function records(){
   const d = dialog('기록 확인하기'); d.classList.add('wide');
-  const list = rows.filter(r => !r.sunk);
+  const list = rows;
   if (!list.length){ const p = el('p', '아직 기록이 없어요.'); p.className = 'muted'; d.append(p); }
   else {
     const wrap = el('div'); wrap.className = 'table-wrap'; const t = el('table'), head = el('tr');
-    ['', '속성', '제목', '내용', '종류·연결'].forEach(h => head.append(el('th', h))); t.append(head);
+    ['', '속성', '제목', '내용', '연결'].forEach(h => head.append(el('th', h))); t.append(head);
     for (const r of list){
       const tr = el('tr');
       const td = el('td'); tr.append(td);
-      tr.append(el('td', r.kind), el('td', r.title), el('td', r.body), el('td', r.kind === '섬' ? r.type || '' : titleOf(r.from) + ' → ' + titleOf(r.to)));
+      tr.append(el('td', r.kind), el('td', r.title), el('td', r.body), el('td', r.kind === '섬' ? '' : titleOf(r.from) + ' → ' + titleOf(r.to)));
       td.append(button('삭제', async () => {
         const msg = r.kind === '섬' ? `「${r.title}」을 지울까요? 이 섬에 닿은 다리도 함께 지워져요.` : `「${r.title}」을 지울까요?`;
         if (await ask(msg, '삭제하기')) adminRun({action: 'adminDelete', id: r.id}, () => { tell('지웠어요.'); records(); });
