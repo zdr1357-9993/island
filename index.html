@@ -31,6 +31,7 @@
       </div>
       <button class="primary">섬 만들기</button>
     </form>
+    <button id="introback" type="button" class="link" hidden>바다로 돌아가기</button>
     <button id="sample" type="button" class="link">먼저 연결된 섬 예시 보기</button>
   </section>
 
@@ -39,11 +40,11 @@
     <div id="hostbar" class="hostbar" hidden><button id="records" type="button">기록 확인하기</button><button id="hostcsv" type="button">기록 내려받기</button><button id="reset" type="button" class="danger">전체 리셋</button></div>
     <p id="hint" class="hint"></p>
     <div class="scroll"><div id="world"><svg id="lines" aria-hidden="true"></svg><div id="nodes"></div></div></div>
-    <footer><button id="listbtn" type="button">내 이야기 수정</button><button id="csv" type="button">나눔 내용 내려받기</button></footer>
+    <footer><button id="listbtn" type="button">내 섬들</button><button id="csv" type="button">나눔 내용 내려받기</button></footer>
   </section>
 
   <section id="mine" class="paper" hidden>
-    <h2>내 이야기</h2>
+    <div class="mine-head"><h2>내 섬들</h2><button id="addisle" type="button" class="primary">섬 만들기</button></div>
     <div id="mylist"></div>
     <button id="backbtn" type="button" class="primary">바다로 돌아가기</button>
   </section>

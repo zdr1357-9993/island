@@ -100,9 +100,19 @@ dialog.wide{width:min(96vw,880px)}
 .table-wrap td:nth-child(3){min-width:90px}.table-wrap td button{min-height:32px;padding:4px 10px;font-size:13px}
 /* 섬이 물 위로 천천히 떠오르는 등장: 아래에서 위로 드러나고, 물결이 두 번 퍼진다 */
 .isle.born img{animation:emerge 1.4s cubic-bezier(.22,.8,.3,1) both}
-@keyframes emerge{0%{opacity:0;transform:translateY(22%);clip-path:inset(0 0 100% 0)}35%{opacity:1}100%{opacity:1;transform:none;clip-path:inset(0 0 0 0)}}
+@media(prefers-reduced-motion:reduce){.isle.born img,.isle.born span,.isle.waiting img{animation:none}}
+@keyframes emerge{0%{opacity:0;transform:translateY(22%);-webkit-clip-path:inset(0 0 100% 0);clip-path:inset(0 0 100% 0)}35%{opacity:1}100%{opacity:1;transform:none;-webkit-clip-path:inset(0 0 0 0);clip-path:inset(0 0 0 0)}}
 .isle.born span{animation:fadein .5s .9s both}@keyframes fadein{from{opacity:0;transform:translateY(4px)}}
 .wave{position:absolute;left:50%;top:62%;width:70%;aspect-ratio:3/1;border:2px solid #e8fffa;border-radius:50%;transform:translate(-50%,-50%) scale(.3);opacity:0;pointer-events:none;animation:wave 1.6s ease-out forwards}
 .wave.w1{animation-delay:.35s}
 @keyframes wave{0%{opacity:.9;transform:translate(-50%,-50%) scale(.3)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.5)}}
 body.host .isle .me{display:none}body.host .isle.mine span{background:#f8eddaf0;border-color:#876c4e}
+
+/* 방금 만든 섬 강조 */
+.isle.focus::before{content:'';position:absolute;inset:-6% 2%;border-radius:50%;box-shadow:0 0 0 3px #fff6,0 0 26px 8px #fff3c4aa;animation:glow 1.2s ease-in-out infinite alternate;pointer-events:none}
+@keyframes glow{from{opacity:.45}to{opacity:1}}
+/* 내 섬들 */
+.mine-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.mine-head h2{margin:0}.mine-head button{width:auto;min-height:40px;padding:6px 14px;font-size:15px}
+.story.sub{margin-left:18px;border-style:dashed}
+/* 다리 출발 섬 고르기 */
+.choices{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.choices button{width:auto;min-height:36px;padding:4px 12px;font-weight:600}.choices button.selected{background:var(--accent);color:#fff;border-color:var(--accent)}
