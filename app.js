@@ -113,10 +113,10 @@ async function sync(first = false){
   try {
     const got = await request({action:'read'}); if (seq !== revision) return;
     const old = rows; rows = got;
-    if (first && (island() || HOST)) view('board');
+    if (first){ tell(''); view(island() || HOST ? 'board' : 'intro'); }
     else if (!$('board').hidden && !demo && !walking && !$('modal').open) draw(old);
     else if (!$('mine').hidden && !$('modal').open) list();
-  } catch(e){ tell('보드를 불러오지 못했어요. ' + e.message, 4000); }
+  } catch(e){ tell('보드를 불러오지 못했어요. ' + e.message, 4000); if (first) view(HOST ? 'board' : 'intro'); }
   finally { loading = false; }
 }
 async function save(p, destination){
@@ -304,6 +304,8 @@ $('csv').onclick = () => {
 };
 if (HOST) document.body.classList.add('host');
 if (!live){ const note = el('p', '체험판 · 이 기기에만 저장됩니다.'); note.className = 'note'; $('intro').prepend(note); }
-setupAvatars(); sync(true);
+setupAvatars();
+if (live){ $('intro').hidden = true; tell('바다를 불러오는 중…', 8000); }
+sync(true);
 if (live) setInterval(() => { if (!document.hidden) sync(); }, HOST ? 4000 : 6000);
 let resizeTimer; window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!$('board').hidden && !walking) draw(); }, 150); });
