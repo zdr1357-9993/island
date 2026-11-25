@@ -6,7 +6,10 @@ const HOST = new URLSearchParams(location.search).get('view') === 'host'; // 진
 const COLS = 5, ROWS = 4, MAX = COLS * ROWS;
 const cellOf = s => [s % COLS, Math.floor(s / COLS)];
 const slotAt = (c, r) => (c < 0 || r < 0 || c >= COLS || r >= ROWS) ? -1 : r * COLS + c;
+// 상하좌우 이웃(점선 표시용)과 대각선까지 포함한 이웃(길 찾기용)
 const neighbors = s => { const [c, r] = cellOf(s); return [slotAt(c, r - 1), slotAt(c + 1, r), slotAt(c, r + 1), slotAt(c - 1, r)].filter(n => n >= 0); };
+const around = s => { const [c, r] = cellOf(s), out = []; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy){ const n = slotAt(c + dx, r + dy); if (n >= 0) out.push(n); } return out; };
+const stepCost = (a, b) => { const [ac, ar] = cellOf(a), [bc, br] = cellOf(b); return ac !== bc && ar !== br ? 1.4 : 1; };
 // 가운데부터 바깥으로 채워서 섬이 적을 때도 서로 가깝게 모이도록
 const FILL = [...Array(MAX).keys()].sort((a, b) => {
   const d = s => { const [c, r] = cellOf(s); return Math.abs(c - 2) + Math.abs(r - 1.5) * 1.1; };
@@ -32,8 +35,9 @@ function button(text, fn, cls){ const b = el('button', text); b.type = 'button';
 function view(id){ for (const page of ['intro','board','mine']) $(page).hidden = page !== id; if (id === 'board') draw(); if (id === 'mine') list(); scrollTo(0, 0); }
 let statusTimer; function tell(s, ms = 2400){ $('status').textContent = s; clearTimeout(statusTimer); if (s) statusTimer = setTimeout(() => $('status').textContent = '', ms); }
 // 같은 종류의 섬도 두 가지 그림 중 하나로 (id로 정해져서 모든 기기에서 같음)
-const variant = id => [...String(id)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % 2 ? '-2' : '';
-const isleImage = r => r.sunk ? 'isle-sunk.webp' : (r.type === '장벽' ? 'isle-wall' : 'isle-think') + variant(r.id) + '.webp';
+const pick = (id, list) => list[[...String(id)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % list.length];
+const ISLES = {생각: ['reflection-cottage', 'reflection-well'], 장벽: ['barrier-stonewall', 'barrier-cliff-fence']};
+const isleImage = r => 'assets/islands/' + (r.sunk ? 'sunk' : pick(r.id, ISLES[r.type === '장벽' ? '장벽' : '생각'])) + '.png';
 
 /* ---------- 확인 팝업 (브라우저 기본 confirm 대신) ---------- */
 function ask(text, ok = '확인'){
@@ -59,12 +63,13 @@ const freeSlot = () => { const {bySlot} = assignSlots(rows); return FILL.find(f 
 /* ---------- 경로: 최단 경로, 같은 길이면 섬이 있는 자리를 지나가도록 ---------- */
 function route(a, b, bySlot = layout.bySlot){
   if (a === undefined || b === undefined) return [];
-  const cost = s => bySlot.has(s) ? 1 : 1.01;
+  // 바로 옆(대각선 포함)이면 한 걸음에. 같은 길이면 빈 바다보다 섬을 지나가는 길을 고른다
+  const cost = (u, n) => stepCost(u, n) + (bySlot.has(n) || n === b ? 0 : 0.05);
   const dist = new Map([[a, 0]]), prev = new Map(), todo = new Set([a]);
   while (todo.size){
     let u = null; for (const t of todo) if (u === null || dist.get(t) < dist.get(u)) u = t;
     todo.delete(u); if (u === b) break;
-    for (const n of neighbors(u)){ const nd = dist.get(u) + cost(n); if (!dist.has(n) || nd < dist.get(n) - 1e-9){ dist.set(n, nd); prev.set(n, u); todo.add(n); } }
+    for (const n of around(u)){ const nd = dist.get(u) + cost(u, n); if (!dist.has(n) || nd < dist.get(n) - 1e-9){ dist.set(n, nd); prev.set(n, u); todo.add(n); } }
   }
   if (!dist.has(b)) return [];
   const path = [b]; while (path[0] !== a) path.unshift(prev.get(path[0]));
@@ -93,6 +98,7 @@ function local(p){
     const {action, ...row} = p;
     saved.push({...row, id: crypto.randomUUID(), mine: true, from: p.kind === '다리' ? island()?.id : ''});
   }
+  if (p.action === 'reset'){ localStorage.islandPreview = '[]'; return []; }
   if (p.action === 'edit' && own(p.id)) Object.assign(own(p.id), {title: p.title, body: p.body});
   if (p.action === 'delete' && own(p.id)){
     // 섬은 지우지 않고 가라앉힌다: 남이 놓은 다리는 그대로 남는다
@@ -126,8 +132,10 @@ async function save(p, destination){
     const old = rows; rows = await request(p);
     $('modal').close(); demo = false; view(destination);
     if (destination === 'board') draw(old);
+    if (p.action === 'reset') return true;
     tell(p.action === 'create' ? (p.kind === '다리' ? '다리가 놓였어요.' : '바다 위에 섬이 떠올랐어요.') : p.action === 'delete' ? '정리했어요.' : '저장했어요.');
-  } catch(e){ tell(e.message, 4000); }
+    return true;
+  } catch(e){ tell(e.message, 4000); return false; }
   finally { busy = false; btns.forEach(b => b.disabled = false); }
 }
 
@@ -139,8 +147,9 @@ function geometry(){
   const w = portrait ? avail : Math.min(avail, Math.max(640, (innerHeight - (HOST ? 90 : 200)) / 0.624));
   const cols = portrait ? ROWS : COLS, rws = portrait ? COLS : ROWS;
   const cw = w / cols, ch = portrait ? Math.max(96, cw * 1.15) : cw * 0.78;
-  const pos = s => { const [c, r] = cellOf(s); const [x, y] = portrait ? [r, c] : [c, r]; return [cw * (x + .5), ch * (y + .5)]; };
-  return {w, h: ch * rws, cw, ch, pos, portrait, k: Math.min(1.8, Math.max(.8, cw / 100))};
+  const top = ch * .12; // 맨 윗줄 섬의 나무가 잘리지 않도록 위쪽 여백
+  const pos = s => { const [c, r] = cellOf(s); const [x, y] = portrait ? [r, c] : [c, r]; return [cw * (x + .5), top + ch * (y + .5)]; };
+  return {w, h: ch * rws + top, cw, ch, pos, portrait, k: Math.min(1.8, Math.max(.8, cw / 100))};
 }
 function draw(old = data()){
   const items = data(), world = $('world'), g = geometry();
@@ -162,14 +171,21 @@ function draw(old = data()){
     Object.entries({x1, y1, x2, y2, class: cls}).forEach(([k, v]) => l.setAttribute(k, v));
     if (width) l.style.strokeWidth = width; svg.append(l); return l;
   };
+  const defs = document.createElementNS(ns, 'defs'); svg.append(defs);
   // 아직 아무도 놓지 않은 다리 자리(이웃한 두 섬 사이)
   for (const [s, r] of layout.bySlot) for (const n of neighbors(s)) if (n > s && layout.bySlot.has(n) && !r.sunk && !layout.bySlot.get(n).sunk && !segs.has(segKey(s, n))) line(s, n, 'maybe');
   // 놓인 다리: 같은 구간을 지나는 다리가 많을수록 굵게
   const passing = new Map();
   for (const [k, seg] of segs){
     const n = seg.bridges.length, fresh = !oldSegs.has(k) || oldSegs.get(k).bridges.length < n, wd = Math.min(n - 1, 4) * 2.5;
-    line(seg.a, seg.b, 'rope', (9 + wd) * g.k);
-    const plank = line(seg.a, seg.b, 'plank' + (fresh ? ' built' : ''), (5.5 + wd) * g.k);
+    const rw = (11 + wd) * g.k, pw = (8 + wd) * g.k, [x1, y1] = g.pos(seg.a), [x2, y2] = g.pos(seg.b);
+    line(seg.a, seg.b, 'rope', rw);
+    // 나무 판자 무늬를 다리 방향으로 돌려서 입힌다
+    const pat = document.createElementNS(ns, 'pattern'), img = document.createElementNS(ns, 'image'), tw = pw * 64 / 24;
+    Object.entries({id: 'plank-' + k, patternUnits: 'userSpaceOnUse', width: tw, height: pw, patternTransform: `translate(${x1} ${y1}) rotate(${Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI}) translate(0 ${-pw / 2})`}).forEach(([a, v]) => pat.setAttribute(a, v));
+    Object.entries({href: 'assets/bridges/wood-planks-tile.png', width: tw, height: pw, preserveAspectRatio: 'none'}).forEach(([a, v]) => img.setAttribute(a, v));
+    pat.append(img); defs.append(pat);
+    const plank = line(seg.a, seg.b, 'plank' + (fresh ? ' built' : ''), pw); plank.style.stroke = `url(#plank-${k})`;
     if (fresh) plank.style.setProperty('--len', Math.hypot(...[0, 1].map(i => g.pos(seg.a)[i] - g.pos(seg.b)[i])));
     if (n > 1){
       const [x1, y1] = g.pos(seg.a), [x2, y2] = g.pos(seg.b), t = el('span', n);
@@ -191,6 +207,7 @@ function draw(old = data()){
     b.style.left = x + 'px'; b.style.top = y + 'px';
     const img = el('img'); img.src = isleImage(r); img.alt = '';
     b.append(img, el('span', r.title));
+    if (!oldLay.slots.has(r.id)){ const fx = el('i'); fx.className = 'splash'; b.append(fx); setTimeout(() => fx.remove(), 1300); }
     if (r.mine && !r.sunk){ const me = el('i', '내 섬'); me.className = 'me'; b.append(me); }
     $('nodes').append(b);
   }
@@ -302,7 +319,19 @@ $('csv').onclick = () => {
   const url = URL.createObjectURL(new Blob(['﻿' + lines.map(row => row.map(field).join(',')).join('\r\n')], {type:'text/csv;charset=utf-8'}));
   const a = el('a'); a.href = url; a.download = '섬과다리.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
 };
-if (HOST) document.body.classList.add('host');
+if (HOST){ document.body.classList.add('host'); $('hostbar').hidden = false; }
+$('hostcsv').onclick = () => $('csv').click();
+// 진행자: 전체 리셋 (진행자 코드 필요, 지운 기록은 시트의 보관 탭에 남는다)
+$('reset').onclick = async () => {
+  if (!(await ask('정말 전체 리셋할까요? 바다의 모든 섬과 다리가 사라져요. 지금까지의 기록은 시트의 보관 탭에 남아요.', '리셋하기'))) return;
+  const d = dialog('진행자 코드'), form = el('form'), input = el('input');
+  input.type = 'password'; input.inputMode = 'numeric'; input.autocomplete = 'off'; input.required = true; input.value = localStorage.islandAdmin || '';
+  const l = el('label', '진행자 코드를 입력해 주세요'); l.append(input); form.append(l);
+  const row = el('div'); row.className = 'actions'; const go = el('button', '전체 리셋'); go.className = 'primary';
+  row.append(go, button('취소', () => d.close())); form.append(row); d.append(form);
+  form.onsubmit = async e => { e.preventDefault(); const admin = input.value.trim();
+    if (await save({action: 'reset', admin}, 'board')){ localStorage.islandAdmin = admin; tell('바다를 새로 열었어요.'); } };
+};
 if (!live){ const note = el('p', '체험판 · 이 기기에만 저장됩니다.'); note.className = 'note'; $('intro').prepend(note); }
 setupAvatars();
 if (live){ $('intro').hidden = true; tell('바다를 불러오는 중…', 8000); }

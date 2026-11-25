@@ -3,6 +3,7 @@
  * 스프레드시트 하나를 DB로 씁니다. 설치 방법은 README.md를 보세요.
  */
 const EVENT_CODE = '';          // config.js의 EVENT_CODE와 같은 값. 비워 두면 검사하지 않음
+const ADMIN_CODE = '';          // 진행자 전체 리셋용 코드. 저장소에는 비워 두고 Apps Script에서만 적어 두세요
 const SHEET_ID = '';          // 스프레드시트 주소의 /d/와 /edit 사이 값. 비워 두면 스크립트가 붙은 시트를 씀
 const MAX_ISLANDS = 20;
 const COLS = 5, ROWS = 4;
@@ -81,6 +82,15 @@ function doPost(e){
         sh.getRange(rowNo, col('sunk')).setValue(true);
         sh.getRange(rowNo, col('updated')).setValue(now);
       } else sh.deleteRow(rowNo);
+    }
+    else if (p.action === 'reset'){
+      if (!ADMIN_CODE || String(p.admin) !== ADMIN_CODE) return json_({error: '진행자 코드가 맞지 않아요.'});
+      // 지우기 전에 지금까지의 기록을 보관 탭으로 복사
+      if (sh.getLastRow() > 1){
+        const stamp = Utilities.formatDate(now, 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
+        sh.copyTo(sh.getParent()).setName('보관 ' + stamp);
+        sh.deleteRows(2, sh.getLastRow() - 1);
+      }
     }
     else return json_({error: '알 수 없는 요청이에요.'});
     return json_({rows: view_(all_(), me)});
