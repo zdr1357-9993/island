@@ -156,6 +156,11 @@ async function save(p, destination){
   if (busy) return; busy = true; revision++;
   if (p.action === 'create') p = {...p, req: uuid()}; // 다시 눌러도 두 번 만들어지지 않도록
   const btns = [...document.querySelectorAll('button:not(:disabled)')]; btns.forEach(b => b.disabled = true);
+  // 저장이 끝날 때까지 화면을 막고 기다리게 한다 (Apps Script는 몇 초에서 길게는 수십 초 걸린다)
+  const wait = $('saving'), msg = p.action === 'create' ? (p.kind === '섬' ? '섬을 바다에 띄우는 중이에요' : '다리를 놓는 중이에요') : p.action === 'reset' ? '바다를 비우는 중이에요' : '저장하는 중이에요';
+  $('saving-text').textContent = msg + '…'; $('saving-sub').textContent = '잠시만 기다려 주세요.';
+  const slow = setTimeout(() => { $('saving-sub').textContent = '사람이 많아 조금 오래 걸리고 있어요. 화면을 닫지 말고 기다려 주세요.'; }, 8000);
+  if (live && !wait.open) wait.showModal();
   try {
     const old = rows;
     try { rows = await request(p); }
@@ -175,7 +180,7 @@ async function save(p, destination){
     tell(p.action === 'create' ? (p.kind === '다리' ? '다리가 놓였어요.' : '바다 위에 섬이 떠올랐어요.') : p.action === 'delete' ? '정리했어요.' : '저장했어요.');
     return true;
   } catch(e){ tell(e.message, 4000); return false; }
-  finally { busy = false; btns.forEach(b => b.disabled = false); }
+  finally { clearTimeout(slow); if (wait.open) wait.close(); busy = false; btns.forEach(b => b.disabled = false); }
 }
 
 /* ---------- 바다 그리기 ---------- */
@@ -438,4 +443,7 @@ setupAvatars();
 if (live){ $('intro').hidden = true; tell('바다를 불러오는 중…', 8000); }
 sync(true);
 if (live) setInterval(() => { if (!document.hidden) sync(); }, HOST ? 4000 : 6000);
+// 다른 앱에 갔다 돌아오면(휴대폰) 기다리지 않고 바로 새로 읽는다
+if (live) document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
+$('saving').oncancel = e => e.preventDefault(); // 저장 중에는 뒤로가기/ESC로 닫히지 않게
 let resizeTimer; window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!$('board').hidden && !walking) draw(); }, 150); });
