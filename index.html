@@ -1,5 +1,62 @@
-<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>섬과 다리</title><link rel="stylesheet" href="style.css"><main>
-<header><strong>섬과 다리</strong><button id="mapbtn">내 보드 보기</button></header>
-<section id="intro" class="paper"><h1>각자의 섬을<br>만들어주세요</h1><form id="entry"><label>함께할 캐릭터<div id="avatars" class="avatars" role="group" aria-label="캐릭터 선택"></div></label><div class="tags"><label><input type="checkbox" value="돌아보게 된 생각"> 돌아보게 된 생각</label><label><input type="checkbox" value="우리 주변의 장벽"> 우리 주변의 장벽</label></div><label>섬 이름<input name="title" required maxlength="24" placeholder="예: 편견섬, 비난섬, 차별섬"></label><label>무엇이 우리 사이를 멀게 했나요?<textarea name="body" required maxlength="240"></textarea></label><button class="primary">섬 만들기</button></form><button id="sample">연결된 섬 예시 보기</button></section>
-<section id="board" hidden><div class="bar"><b id="caption"></b><button id="newbtn">섬 만들기</button></div><div class="scroll"><div id="world"><svg id="lines" aria-hidden="true"></svg><div id="nodes"></div></div></div><footer><button id="listbtn">내 이야기 모아보기</button><button id="csv">나눔 내용 내려받기</button></footer></section>
-<section id="mine" class="paper" hidden><h2>내 이야기 모아보기</h2><table><thead><tr><th>속성</th><th>제목</th><th>내용</th></tr></thead><tbody></tbody></table></section><dialog id="modal"></dialog><p id="status" role="status"></p></main><script src="config.js"></script><script src="app.js"></script></html>
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>섬과 다리</title>
+<meta name="description" content="나의 섬을 띄우고, 서로의 섬에 다리를 놓는 익명 참여 보드">
+<meta property="og:title" content="섬과 다리">
+<meta property="og:description" content="오늘 돌아보게 된 장벽 하나, 그 장벽을 낮출 작은 행동 하나">
+<meta property="og:image" content="og.png">
+<meta name="theme-color" content="#174a52">
+<link rel="icon" href="favicon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <strong>섬과 다리</strong>
+    <button id="mapbtn" type="button">내 보드 보기</button>
+  </header>
+
+  <section id="intro" class="paper">
+    <h1>각자의 섬을<br>만들어주세요</h1>
+    <p class="lead">오늘 돌아보게 된 나의 생각이나, 우리 사이를 멀게 하는 장벽 하나를 적어 주세요. 이름은 남지 않아요.</p>
+    <form id="entry">
+      <fieldset class="kinds">
+        <legend>어떤 섬인가요?</legend>
+        <label class="kind"><input type="radio" name="type" value="생각" required><img src="isle-think.webp" alt=""><span>돌아보게 된 생각</span></label>
+        <label class="kind"><input type="radio" name="type" value="장벽"><img src="isle-wall.webp" alt=""><span>우리 주변의 장벽</span></label>
+      </fieldset>
+      <label>섬 이름<input name="title" required maxlength="24" placeholder="예: 편견섬, 비난섬, 차별섬" autocomplete="off"></label>
+      <label>이 섬에는 어떤 넘기 어려운 무언가가 있나요?<textarea name="body" required maxlength="240" placeholder="예: 낯선 행동을 보면 먼저 거리를 두었던 나의 시선"></textarea></label>
+      <div class="field">
+        <span class="field-label">바다를 건널 캐릭터</span>
+        <div id="avatars" class="avatars" role="group" aria-label="캐릭터 선택"></div>
+      </div>
+      <button class="primary">섬 만들기</button>
+    </form>
+    <button id="sample" type="button" class="link">먼저 연결된 섬 예시 보기</button>
+  </section>
+
+  <section id="board" hidden>
+    <div class="bar"><b id="caption"></b><button id="newbtn" type="button">섬 만들기</button></div>
+    <p id="hint" class="hint"></p>
+    <div class="scroll"><div id="world"><svg id="lines" aria-hidden="true"></svg><div id="nodes"></div></div></div>
+    <footer><button id="listbtn" type="button">내 이야기 수정</button><button id="csv" type="button">나눔 내용 내려받기</button></footer>
+  </section>
+
+  <section id="mine" class="paper" hidden>
+    <h2>내 이야기</h2>
+    <div id="mylist"></div>
+    <button id="backbtn" type="button" class="primary">바다로 돌아가기</button>
+  </section>
+
+  <dialog id="modal"></dialog>
+  <dialog id="confirm"><p id="confirm-text"></p><div class="actions"><button id="confirm-ok" type="button" class="primary">확인</button><button id="confirm-no" type="button">취소</button></div></dialog>
+  <p id="status" role="status"></p>
+</main>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
