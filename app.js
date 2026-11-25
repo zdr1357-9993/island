@@ -112,7 +112,6 @@ function local(p){
   if (p.action === 'adminDelete'){ const t = saved.find(r => r.id === p.id); saved = saved.filter(r => t?.kind === '섬' ? ![r.id, r.from, r.to].includes(p.id) : r.id !== p.id); }
   if (p.action === 'edit' && own(p.id)) Object.assign(own(p.id), {title: p.title, body: p.body});
   if (p.action === 'delete' && own(p.id)){
-    // 섬은 지우지 않고 가라앉힌다: 남이 놓은 다리는 그대로 남는다
     // 섬을 지우면 그 섬에 닿은 다리도 함께 사라진다
     saved = own(p.id).kind === '섬' ? saved.filter(r => ![r.id, r.from, r.to].includes(p.id)) : saved.filter(r => r.id !== p.id);
   }

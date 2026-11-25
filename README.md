@@ -35,4 +35,4 @@
 
 ## 그림 파일
 
-그림은 모두 `assets/` 폴더에 있고, 목록은 `assets/README.md`에 있어요. `assets/islands/sunk.png`(가라앉은 섬)는 오두막 섬 그림의 색을 빼고 물에 잠기게 만든 거예요.
+그림은 모두 `assets/` 폴더에 있고, 목록은 `assets/README.md`에 있어요. `assets/islands/isle-*.webp` 다섯 장(폭포·단풍·정자·등대·종)은 ComfyUI(Z-Image Turbo)로 만들어 배경을 지운 거예요.
